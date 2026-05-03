@@ -27,4 +27,23 @@ app.include_router(v1_router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": settings.app_name}
+    import redis
+    from sqlalchemy import create_engine, text
+    health_status = {"status": "ok", "service": settings.app_name}
+    # Check DB
+    try:
+        sync_url = settings.database_url.replace("+asyncpg", "")
+        engine = create_engine(sync_url)
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        health_status["database"] = "ok"
+    except Exception as e:
+        health_status["database"] = str(e)
+    # Check Redis
+    try:
+        r = redis.from_url(settings.redis_url)
+        r.ping()
+        health_status["redis"] = "ok"
+    except Exception as e:
+        health_status["redis"] = str(e)
+    return health_status
