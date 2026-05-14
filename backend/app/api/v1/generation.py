@@ -3,10 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 from app.api.deps import get_db
 from app.schemas.generation import GenerateOutlineRequest, GenerateChapterRequest, GenerationTaskResponse
-from app.services.novel_service import NovelService
-from app.services.chapter_service import ChapterService
 from app.models.generation_task import GenerationTask
-import uuid
+from app.services.generation_dispatch_service import GenerationDispatchService
 import json
 import asyncio
 import redis.asyncio as aioredis
@@ -17,35 +15,31 @@ router = APIRouter(tags=["generation"])
 
 @router.post("/novels/{novel_id}/generate/outline", status_code=status.HTTP_202_ACCEPTED)
 async def generate_outline(novel_id: str, data: GenerateOutlineRequest, db: AsyncSession = Depends(get_db)):
-    novel = await NovelService(db).get_novel(novel_id)
-    if not novel:
-        raise HTTPException(status_code=404, detail="Novel not found")
-    task = GenerationTask(
-        id=uuid.uuid4(), novel_id=novel_id, task_type="outline",
-        target_id=data.parent_id, status="queued",
-    )
-    db.add(task)
-    await db.commit()
-    return {"task_id": str(task.id), "status": "queued"}
+    try:
+        result = await GenerationDispatchService(db).dispatch_outline(
+            novel_id=novel_id,
+            level=data.level,
+            parent_id=data.parent_id or "",
+            count=data.count,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/novels/{novel_id}/generate/chapter", status_code=status.HTTP_202_ACCEPTED)
 async def generate_chapter(novel_id: str, data: GenerateChapterRequest, db: AsyncSession = Depends(get_db)):
-    novel = await NovelService(db).get_novel(novel_id)
-    if not novel:
-        raise HTTPException(status_code=404, detail="Novel not found")
-
-    chapter_number = data.chapter_number
-    if chapter_number is None:
-        chapter_number = await ChapterService(db).get_latest_chapter_number(novel_id) + 1
-
-    task = GenerationTask(
-        id=uuid.uuid4(), novel_id=novel_id, task_type="chapter",
-        target_id=data.outline_id, status="queued",
-    )
-    db.add(task)
-    await db.commit()
-    return {"task_id": str(task.id), "chapter_number": chapter_number, "status": "queued"}
+    try:
+        result = await GenerationDispatchService(db).dispatch_chapter(
+            novel_id=novel_id,
+            outline_id=data.outline_id or "",
+            chapter_number=data.chapter_number or 0,
+            words_per_chapter=data.words_per_chapter,
+            description=data.description or "",
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/generation/tasks", response_model=list[GenerationTaskResponse])

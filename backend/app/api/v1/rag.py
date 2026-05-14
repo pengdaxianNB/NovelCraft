@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.api.deps import get_db
 from app.schemas.rag import RagDocumentResponse, RagSearchRequest, RagSearchResult
 from app.models.rag import RagDocument, RagChunk
-import uuid
+from app.services.rag_service import RagService
 
 router = APIRouter(tags=["rag"])
 
@@ -12,18 +12,11 @@ router = APIRouter(tags=["rag"])
 @router.post("/novels/{novel_id}/rag/documents", response_model=RagDocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(novel_id: str, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     content = await file.read()
-    doc = RagDocument(
-        id=uuid.uuid4(),
+    return await RagService(db).upload_document(
         novel_id=novel_id,
         filename=file.filename or "unknown.txt",
         content=content.decode("utf-8", errors="ignore"),
-        chunk_count=0,
-        status="processing",
     )
-    db.add(doc)
-    await db.commit()
-    await db.refresh(doc)
-    return doc
 
 
 @router.get("/novels/{novel_id}/rag/documents", response_model=list[RagDocumentResponse])
@@ -46,8 +39,18 @@ async def delete_document(document_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/rag/search", response_model=list[RagSearchResult])
 async def search_rag(data: RagSearchRequest, db: AsyncSession = Depends(get_db)):
-    # Search across all chunks; returns content + metadata.
-    # Vector similarity search will be implemented when embeddings are ready.
+    if data.novel_id:
+        results = await RagService(db).search(data.novel_id, data.query, data.top_k)
+        return [
+            RagSearchResult(
+                id=str(item["id"]),
+                content=str(item.get("content") or "")[:500],
+                metadata=item.get("metadata") or {},
+                similarity=float(item.get("similarity") or 0.0),
+            )
+            for item in results
+        ]
+
     stmt = (
         select(RagChunk)
         .where(RagChunk.content.ilike(f"%{data.query}%"))

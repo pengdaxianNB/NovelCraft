@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.world_setting import WorldSetting
 from app.schemas.world_setting import WorldSettingCreate, WorldSettingUpdate
+from app.ai.rag.embedder import embed_query
 
 
 class WorldSettingService:
@@ -22,6 +23,11 @@ class WorldSettingService:
         self, novel_id: str, data: WorldSettingCreate
     ) -> WorldSetting:
         setting = WorldSetting(novel_id=novel_id, **data.model_dump())
+        try:
+            embed_text = f"[{setting.category}] {setting.title}: {setting.content}"
+            setting.embedding = await embed_query(embed_text)
+        except Exception:
+            pass
         self.db.add(setting)
         await self.db.commit()
         await self.db.refresh(setting)
@@ -36,6 +42,11 @@ class WorldSettingService:
         for k, v in data.model_dump(exclude_unset=True).items():
             if v is not None:
                 setattr(setting, k, v)
+        try:
+            embed_text = f"[{setting.category}] {setting.title}: {setting.content}"
+            setting.embedding = await embed_query(embed_text)
+        except Exception:
+            pass
         await self.db.commit()
         await self.db.refresh(setting)
         return setting

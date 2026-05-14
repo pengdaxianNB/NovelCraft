@@ -14,11 +14,12 @@ import { useRouter } from "next/navigation";
 export default function ProjectsPage() {
   const [novels, setNovels] = useState<Novel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ title: "", genre: "玄幻", synopsis: "" });
   const router = useRouter();
 
-  const fetchNovels = () => api.listNovels().then(setNovels).finally(() => setLoading(false));
+  const fetchNovels = () => api.listNovels().then(setNovels).catch((e: any) => setError(e.message || "加载小说列表失败")).finally(() => setLoading(false));
   useEffect(() => { fetchNovels(); }, []);
 
   const handleCreate = async () => {
@@ -65,7 +66,9 @@ export default function ProjectsPage() {
           </div>
         </Dialog>
 
-        {loading ? (
+        {error ? (
+          <p className="text-red-600">出错了：{error}</p>
+        ) : loading ? (
           <p className="text-muted-foreground">加载中...</p>
         ) : novels.length === 0 ? (
           <div className="text-center py-12">

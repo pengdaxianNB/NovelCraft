@@ -1,8 +1,7 @@
-import json
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
-from app.config import settings
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from app.ai.prompts.outline import OUTLINE_SYSTEM, OUTLINE_USER
+from app.ai.utils import ainvoke_with_retry, create_llm
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -10,12 +9,7 @@ logger = get_logger(__name__)
 
 class OutlineAgent:
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=settings.openai_model,
-            api_key=settings.openai_api_key,
-            temperature=0.8,
-            max_tokens=4000,
-        )
+        self.llm = create_llm(temperature=0.8, max_tokens=4000)
 
     async def generate(
         self,
@@ -26,6 +20,7 @@ class OutlineAgent:
         world_context: str,
         character_context: str,
         existing_outlines: str,
+        rag_context: str = "",
         instruction: str = "",
     ) -> list[dict]:
         system_msg = SystemMessage(content=OUTLINE_SYSTEM.format(
@@ -33,6 +28,7 @@ class OutlineAgent:
             world_context=world_context,
             character_context=character_context,
             existing_outlines=existing_outlines,
+            rag_context=rag_context,
             count=count,
             level=level,
         ))
@@ -42,21 +38,27 @@ class OutlineAgent:
             count=count,
             instruction=instruction,
         ))
-        response = await self.llm.ainvoke([system_msg, user_msg])
-        return self._parse_outline_response(str(response.content))
+        response = await ainvoke_with_retry(self.llm, [system_msg, user_msg])
+        result = self._parse_outline_response(str(response.content))
+        usage = response.response_metadata.get("token_usage", {})
+        logger.info("Outline generation completed", tokens=usage.get("total_tokens", 0), outlines=len(result))
+        return result
 
     def _parse_outline_response(self, content: str) -> list[dict]:
-        outlines = []
-        lines = content.strip().split("\n")
-        current = {}
-        for line in lines:
-            line = line.strip()
+        outlines: list[dict] = []
+        current: dict[str, str] = {}
+        for raw_line in content.strip().splitlines():
+            line = raw_line.strip()
             if not line:
                 continue
-            if line.startswith(("#", "##", "###")) or (line[0].isdigit() and ("." in line or "、" in line)):
+            is_heading = line.startswith(("#", "-", "*")) or (
+                line[0].isdigit() and ("." in line or "、" in line)
+            )
+            if is_heading:
                 if current:
                     outlines.append(current)
-                current = {"title": line.lstrip("#0123456789. 、"), "summary": ""}
+                title = line.lstrip("#-* 0123456789.、").strip()
+                current = {"title": title, "summary": ""}
             elif current:
                 current["summary"] += line + "\n"
         if current:

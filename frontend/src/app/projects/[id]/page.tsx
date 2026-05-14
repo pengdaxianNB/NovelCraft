@@ -14,6 +14,7 @@ export default function WorkspacePage() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [outlines, setOutlines] = useState<Outline[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -25,15 +26,23 @@ export default function WorkspacePage() {
       setChapters(c);
       setOutlines(o);
       setLoading(false);
+    }).catch((e) => {
+      setError(e.message || "加载失败，请检查后端服务是否已启动");
+      setLoading(false);
     });
   }, [id]);
 
   const handleGenerateChapter = async () => {
-    const result = await api.generateChapter(id, {});
-    alert(`生成任务已创建: ${result.task_id}`);
+    try {
+      const result = await api.generateChapter(id, {});
+      alert(`生成任务已创建: ${result.task_id}`);
+    } catch (e: any) {
+      alert(`生成失败: ${e.message || "未知错误"}`);
+    }
   };
 
   if (loading) return <main className="p-8"><p className="text-muted-foreground">加载中...</p></main>;
+  if (error) return <main className="p-8"><p className="text-red-600">出错了：{error}</p></main>;
   if (!novel) return <main className="p-8"><p className="text-muted-foreground">小说未找到</p></main>;
 
   const latestChapter = chapters[chapters.length - 1];

@@ -32,9 +32,13 @@ class RagService:
                 metadata_json={"filename": filename},
             ))
 
-        embeddings = await embed_texts([c.content for c in chunk_objs])
-        for chunk, emb in zip(chunk_objs, embeddings):
-            chunk.embedding = emb
+        try:
+            embeddings = await embed_texts([c.content for c in chunk_objs])
+            for chunk, emb in zip(chunk_objs, embeddings):
+                chunk.embedding = emb
+        except Exception:
+            for chunk in chunk_objs:
+                chunk.embedding = None
 
         self.db.add_all(chunk_objs)
         doc.chunk_count = len(chunks)

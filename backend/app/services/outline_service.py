@@ -74,8 +74,9 @@ class OutlineService:
         roots: list[OutlineResponse] = []
 
         for o in outlines:
+            oid = str(o.id)
             item = OutlineResponse(
-                id=str(o.id),
+                id=oid,
                 novel_id=str(o.novel_id),
                 level=o.level,
                 parent_id=str(o.parent_id) if o.parent_id else None,
@@ -87,13 +88,16 @@ class OutlineService:
                 created_at=o.created_at,
                 updated_at=o.updated_at,
             )
-            lookup[item.id] = item
+            lookup[oid] = item
 
         for o in outlines:
-            item = lookup[str(o.id)]
-            if o.parent_id and str(o.parent_id) in lookup:
-                lookup[str(o.parent_id)].children.append(item)
-            else:
-                roots.append(item)
+            oid = str(o.id)
+            item = lookup[oid]
+            if o.parent_id:
+                parent_id = str(o.parent_id)
+                if parent_id in lookup:
+                    lookup[parent_id].children.append(item)
+                    continue
+            roots.append(item)
 
         return roots

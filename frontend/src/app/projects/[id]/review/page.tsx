@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import type { Chapter } from "@/types";
+import type { Chapter, ChapterReviewResult } from "@/types";
 
 export default function ReviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -14,16 +14,24 @@ export default function ReviewPage() {
   const [selected, setSelected] = useState<Chapter | null>(null);
   const [editContent, setEditContent] = useState("");
   const [loading, setLoading] = useState(true);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewResult, setReviewResult] = useState<ChapterReviewResult | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const fetchChapters = () => api.listChapters(id).then(setChapters);
-  useEffect(() => { fetchChapters().finally(() => setLoading(false)); }, [id]);
 
-  const reviewChapters = chapters.filter(c => c.status === "draft" || c.status === "review");
+  useEffect(() => {
+    fetchChapters().finally(() => setLoading(false));
+  }, [id]);
+
+  const reviewChapters = chapters.filter((c) => c.status === "draft" || c.status === "review");
 
   const openChapter = async (c: Chapter) => {
     const full = await api.getChapter(c.id);
     setSelected(full);
     setEditContent(full.content || "");
+    setReviewResult(null);
+    setReviewError(null);
   };
 
   const handleSave = async () => {
@@ -35,10 +43,26 @@ export default function ReviewPage() {
 
   const handleApprove = async () => {
     if (!selected) return;
-    if (editContent !== selected.content) await api.updateChapter(selected.id, { content: editContent });
+    if (editContent !== selected.content) {
+      await api.updateChapter(selected.id, { content: editContent });
+    }
     await api.publishChapter(selected.id);
     setSelected(null);
     fetchChapters();
+  };
+
+  const handleReview = async () => {
+    if (!selected) return;
+    setReviewing(true);
+    setReviewError(null);
+    try {
+      const result = await api.reviewChapter(selected.id, { content: editContent });
+      setReviewResult(result as ChapterReviewResult);
+    } catch (e: any) {
+      setReviewError(e.message || "AI 审稿失败");
+    } finally {
+      setReviewing(false);
+    }
   };
 
   const handleRewrite = async () => {
@@ -47,7 +71,9 @@ export default function ReviewPage() {
     alert("已触发重写任务");
   };
 
-  if (loading) return <main className="p-8"><p className="text-muted-foreground">加载中...</p></main>;
+  if (loading) {
+    return <main className="p-8"><p className="text-muted-foreground">加载中...</p></main>;
+  }
 
   return (
     <div className="flex h-full">
@@ -57,10 +83,17 @@ export default function ReviewPage() {
           <p className="text-sm text-muted-foreground">没有待审核的章节</p>
         ) : (
           <div className="space-y-2">
-            {reviewChapters.map(c => (
-              <Card key={c.id} className={`cursor-pointer hover:shadow-md transition-shadow ${selected?.id === c.id ? "ring-2 ring-primary" : ""}`} onClick={() => openChapter(c)}>
+            {reviewChapters.map((c) => (
+              <Card
+                key={c.id}
+                className={`cursor-pointer hover:shadow-md transition-shadow ${selected?.id === c.id ? "ring-2 ring-primary" : ""}`}
+                onClick={() => openChapter(c)}
+              >
                 <CardContent className="p-3">
-                  <div className="flex items-center justify-between"><span className="font-medium text-sm">第{c.chapter_number}章</span><Badge variant={c.status}>{c.status}</Badge></div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm">第 {c.chapter_number} 章</span>
+                    <Badge variant={c.status}>{c.status}</Badge>
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">{c.word_count} 字</p>
                 </CardContent>
               </Card>
@@ -69,22 +102,81 @@ export default function ReviewPage() {
         )}
       </aside>
 
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 overflow-y-auto">
         {!selected ? (
-          <div className="flex items-center justify-center h-full"><p className="text-muted-foreground">选择左侧章节开始审核</p></div>
+          <div className="flex items-center justify-center h-full">
+            <p className="text-muted-foreground">选择左侧章节开始审核</p>
+          </div>
         ) : (
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold">第{selected.chapter_number}章 {selected.title}</h2>
+            <div className="flex items-center justify-between mb-4 gap-4">
+              <h2 className="text-2xl font-bold">第 {selected.chapter_number} 章 {selected.title}</h2>
               <div className="flex gap-2">
+                <Button variant="outline" onClick={handleReview} disabled={reviewing}>
+                  {reviewing ? "审稿中..." : "AI 审稿/一致性检查"}
+                </Button>
                 <Button variant="outline" onClick={handleRewrite}>触发重写</Button>
                 <Button variant="outline" onClick={handleSave}>保存修改</Button>
                 <Button onClick={handleApprove}>批准发布</Button>
               </div>
             </div>
+
+            {reviewError && (
+              <Card className="mb-4 border-red-200">
+                <CardContent className="p-4 text-sm text-red-600">{reviewError}</CardContent>
+              </Card>
+            )}
+
+            {reviewResult && (
+              <Card className="mb-4">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">AI 审稿结果</h4>
+                    <Badge variant={reviewResult.passed ? "published" : "failed"}>
+                      {reviewResult.passed ? "通过" : "需修改"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <p>{reviewResult.summary}</p>
+                  {reviewResult.issues.length > 0 && (
+                    <div className="space-y-2">
+                      {reviewResult.issues.map((issue, index) => (
+                        <div key={index} className="border border-border rounded-md p-3">
+                          <div className="font-medium">{issue.dimension || "问题"} · {issue.severity || "unknown"}</div>
+                          <p className="mt-1">{issue.description}</p>
+                          {issue.suggestion && <p className="mt-1 text-muted-foreground">建议：{issue.suggestion}</p>}
+                          {issue.location && <p className="mt-1 text-xs text-muted-foreground">位置：{issue.location}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    RAG 命中 {reviewResult.rag_hits.length} 条，用时 {reviewResult.timings_ms.rag_retrieval ?? 0} ms
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
-              <Card><CardHeader><h4 className="font-medium">生成内容</h4></CardHeader><CardContent><div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm">{selected.content || "暂无内容"}</div></CardContent></Card>
-              <Card><CardHeader><h4 className="font-medium">编辑区</h4></CardHeader><CardContent><textarea className="w-full h-96 p-3 border border-border rounded-md bg-background text-sm font-mono" value={editContent} onChange={e => setEditContent(e.target.value)} /></CardContent></Card>
+              <Card>
+                <CardHeader><h4 className="font-medium">生成内容</h4></CardHeader>
+                <CardContent>
+                  <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm">
+                    {selected.content || "暂无内容"}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><h4 className="font-medium">编辑区</h4></CardHeader>
+                <CardContent>
+                  <textarea
+                    className="w-full h-96 p-3 border border-border rounded-md bg-background text-sm font-mono"
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                  />
+                </CardContent>
+              </Card>
             </div>
           </div>
         )}

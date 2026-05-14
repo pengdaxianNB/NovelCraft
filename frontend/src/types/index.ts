@@ -26,6 +26,14 @@ export interface Chapter {
   updated_at: string;
 }
 
+export interface ChapterReviewResult {
+  passed: boolean;
+  issues: Array<Record<string, any>>;
+  summary: string;
+  rag_hits: Array<Record<string, any>>;
+  timings_ms: Record<string, number>;
+}
+
 export interface Character {
   id: string;
   novel_id: string;
@@ -50,6 +58,33 @@ export interface Outline {
   updated_at: string;
 }
 
+export interface WorldSetting {
+  id: string;
+  novel_id: string;
+  category: string;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorldSettingConsistencyResult {
+  passed: boolean;
+  issues: Array<Record<string, any>>;
+  summary: string;
+  rag_hits: Array<Record<string, any>>;
+  timings_ms: Record<string, number>;
+}
+
+export interface RagDocument {
+  id: string;
+  novel_id: string;
+  filename: string;
+  chunk_count: number;
+  status: string;
+  created_at: string;
+}
+
 export interface GenerationTask {
   id: string;
   novel_id: string;
@@ -62,4 +97,15 @@ export interface GenerationTask {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+}
+
+export interface GenerateOutlineResult {
+  task_id: string;
+  status: string;
+}
+
+export interface GenerateChapterResult {
+  task_id: string;
+  chapter_number: number;
+  status: string;
 }

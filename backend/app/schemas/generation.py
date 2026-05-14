@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Any
+import uuid
 
 
 class GenerateOutlineRequest(BaseModel):
@@ -13,13 +14,14 @@ class GenerateChapterRequest(BaseModel):
     outline_id: str | None = None
     chapter_number: int | None = None
     words_per_chapter: int | None = None
+    description: str | None = None
 
 
 class GenerationTaskResponse(BaseModel):
-    id: str
-    novel_id: str
+    id: uuid.UUID
+    novel_id: uuid.UUID
     task_type: str
-    target_id: str | None
+    target_id: uuid.UUID | None
     status: str
     progress: dict[str, Any]
     result: dict[str, Any]

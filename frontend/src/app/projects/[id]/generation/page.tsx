@@ -15,7 +15,7 @@ export default function GenerationPage() {
   const [streaming, setStreaming] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [outlineForm, setOutlineForm] = useState({ level: "chapter", parent_id: "", count: 5 });
-  const [chapterForm, setChapterForm] = useState({ words_per_chapter: 3000 });
+  const [chapterForm, setChapterForm] = useState({ words_per_chapter: 3000, description: "" });
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const fetchTasks = () => api.listTasks().then(setTasks);
@@ -33,7 +33,7 @@ export default function GenerationPage() {
   };
 
   const handleGenerateChapter = async () => {
-    const result = await api.generateChapter(id, { words_per_chapter: chapterForm.words_per_chapter });
+    const result = await api.generateChapter(id, { words_per_chapter: chapterForm.words_per_chapter, description: chapterForm.description || null });
     setActiveTaskId(result.task_id);
     setStreamText("");
     setStreaming(true);
@@ -90,7 +90,11 @@ export default function GenerationPage() {
             <div className="flex flex-col gap-3">
               <div>
                 <label className="block text-sm mb-1">本章目标字数</label>
-                <input type="number" className="w-full px-3 py-2 border border-border rounded-md bg-background" value={chapterForm.words_per_chapter} onChange={e => setChapterForm({ words_per_chapter: Number(e.target.value) })} />
+                <input type="number" className="w-full px-3 py-2 border border-border rounded-md bg-background" value={chapterForm.words_per_chapter} onChange={e => setChapterForm({ ...chapterForm, words_per_chapter: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">内容描述（可选）</label>
+                <textarea className="w-full px-3 py-2 border border-border rounded-md bg-background" rows={3} placeholder="描述本章想要的情节走向、场景或关键事件，留空则自动生成..." value={chapterForm.description} onChange={e => setChapterForm({ ...chapterForm, description: e.target.value })} />
               </div>
               <Button onClick={handleGenerateChapter} disabled={streaming}>{streaming ? "生成中..." : "生成下一章"}</Button>
             </div>

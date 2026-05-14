@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Any
+import uuid
 
 
 class StyleConfig(BaseModel):
@@ -38,7 +39,7 @@ class NovelStyleUpdate(BaseModel):
 
 
 class NovelResponse(BaseModel):
-    id: str
+    id: uuid.UUID
     title: str
     genre: str
     synopsis: str | None

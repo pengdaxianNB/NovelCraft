@@ -21,6 +21,7 @@ celery_app.conf.update(
     task_annotations={
         "app.tasks.generation_tasks.*": {"max_retries": 3, "default_retry_delay": 60},
     },
+    redisbeat_redis_url=settings.redis_url,
 )
 
 # Periodic task: scan for scheduled novels every 5 minutes

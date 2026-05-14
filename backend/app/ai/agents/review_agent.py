@@ -1,8 +1,9 @@
 import json
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
-from app.config import settings
+
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from app.ai.prompts.review import REVIEW_SYSTEM, REVIEW_USER
+from app.ai.utils import ainvoke_with_retry, create_llm
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -10,12 +11,7 @@ logger = get_logger(__name__)
 
 class ReviewAgent:
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=settings.openai_model,
-            api_key=settings.openai_api_key,
-            temperature=0.3,
-            max_tokens=2000,
-        )
+        self.llm = create_llm(temperature=0.3, max_tokens=2000)
 
     async def review(
         self,
@@ -39,11 +35,23 @@ class ReviewAgent:
             previous_context=previous_context,
             chapter_content=chapter_content,
         ))
-        response = await self.llm.ainvoke([system_msg, user_msg])
-        return self._parse_review_response(str(response.content))
+        response = await ainvoke_with_retry(self.llm, [system_msg, user_msg])
+        result = self._parse_review_response(str(response.content))
+        usage = response.response_metadata.get("token_usage", {})
+        result["tokens_used"] = usage.get("total_tokens", 0)
+        logger.info("Review completed", tokens=result["tokens_used"], passed=result.get("passed"))
+        return result
 
     def _parse_review_response(self, content: str) -> dict:
         try:
-            return json.loads(content)
+            text = content.strip()
+            if text.startswith("```"):
+                lines = text.splitlines()
+                text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+            result = json.loads(text)
+            if isinstance(result, dict):
+                return result
         except json.JSONDecodeError:
-            return {"passed": True, "issues": [], "summary": "审校解析失败，默认通过"}
+            pass
+        logger.warning("ReviewAgent JSON parse failed, defaulting to not passed")
+        return {"passed": False, "issues": [{"type": "parse_error", "detail": "LLM output could not be parsed as valid JSON"}], "summary": "Review response parsing failed; defaulted to not passed."}

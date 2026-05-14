@@ -19,6 +19,7 @@ export function Sidebar({ novelId }: SidebarProps) {
     ? [
         { href: `/projects/${novelId}`, label: "工作台", icon: "✍️" },
         { href: `/projects/${novelId}/settings`, label: "设定工坊", icon: "⚙️" },
+        { href: `/projects/${novelId}/outlines`, label: "大纲管理", icon: "📋" },
         { href: `/projects/${novelId}/chapters`, label: "章节管理", icon: "📖" },
         { href: `/projects/${novelId}/review`, label: "审核编辑", icon: "🔍" },
         { href: `/projects/${novelId}/generation`, label: "生成控制", icon: "🤖" },

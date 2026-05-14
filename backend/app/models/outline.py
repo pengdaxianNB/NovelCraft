@@ -18,5 +18,5 @@ class Outline(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), default="planned")
 
     novel = relationship("Novel", back_populates="outlines")
-    children = relationship("Outline", back_populates="parent", remote_side=[id], cascade="all, delete-orphan")
-    parent = relationship("Outline", back_populates="children", remote_side=[parent_id])
+    children = relationship("Outline", back_populates="parent", remote_side=[parent_id], cascade="all, delete-orphan")
+    parent = relationship("Outline", back_populates="children", remote_side=[id])

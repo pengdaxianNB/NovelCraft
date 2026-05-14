@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Any
+import uuid
 
 
 class OutlineCreate(BaseModel):
@@ -24,10 +25,10 @@ class OutlineReorder(BaseModel):
 
 
 class OutlineResponse(BaseModel):
-    id: str
-    novel_id: str
+    id: uuid.UUID
+    novel_id: uuid.UUID
     level: str
-    parent_id: str | None
+    parent_id: uuid.UUID | None
     sequence: int
     title: str
     summary: str | None

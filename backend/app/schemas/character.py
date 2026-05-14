@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Any
+import uuid
 
 
 class CharacterCreate(BaseModel):
@@ -16,8 +17,8 @@ class CharacterUpdate(BaseModel):
 
 
 class CharacterResponse(BaseModel):
-    id: str
-    novel_id: str
+    id: uuid.UUID
+    novel_id: uuid.UUID
     name: str
     role: str
     profile: dict[str, Any]
